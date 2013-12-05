@@ -3,16 +3,34 @@ agentx
 
 An [agentx](http://en.wikipedia.org/wiki/AgentX) implementation in Go.
 
-`agentx` is the protocol used to extend SNMP by implementing subagents. This
-project links to the C bindings for [net-snmp](http://www.net-snmp.org/), the
-main open-source implementation of SNMP.
-
 With this package, a Go process can connect to an SNMP master agent and
 register itself for certain OIDs. Callbacks are registered to these OIDs,
 giving application code the ability to set OID response values.
 
 A thin cgo wrapper is used to link to `libsnmp`. A native Go implementation
 would be a lot better, but RFC 2741 is [long](http://tools.ietf.org/html/rfc2741#section-3.1).
+
+Rationale
+---------
+
+SNMP is a network monitoring protocol, but with an open-source Network
+Management System like [openNMS](http://www.opennms.org/) it can be used for
+monitoring at the application level.
+
+Go's niche as a safe, statically linked systems programming language makes it
+perfect for lightweight monitoring and reporting tools with minimal impact on a
+production environment; [Ground Control](http://jondot.github.io/groundcontrol/)
+for Raspberry Pi is a good example.
+
+This package can be used either to implement an SNMP agent embedded within a Go
+service, or a dedicated monitoring tool. At Learnosity, our monitoring service
+is written in Go and exposes data over HTTP, CLI and SNMP through the agentx
+service.
+
+`agentx` is the protocol used to extend SNMP by implementing subagents. This
+project links to the C bindings for [net-snmp](http://www.net-snmp.org/), the
+main open-source implementation of SNMP.
+
 
 Configuration
 -------------
@@ -28,8 +46,8 @@ In net-snmp, the master agent socket is typically defined in `/etc/snmp/snmpd.co
 agentXSocket /var/agentx/master
 ```
 
-If this is set to a TCP socket, the agentx server can register with an SNMP master
-agent on a different host.
+If this is set to a TCP socket, the agentx server can register with an SNMP
+master agent on a different host.
 
 Installing
 --------
@@ -40,11 +58,13 @@ Use go get:
 $ go get github.com/Learnosity/agentx
 ```
 
-Or just put `import "github.com/Learnosity/agentx"` in your Go project and use `go install`.
+Or just put `import "github.com/Learnosity/agentx"` in your Go project and use
+`go install`.
 
 Aside from Go, you'll need `libsnmp-dev` for the code to build.
 
-Currently only works if cc points to gcc - Clang (on OSX) doesn't seem to understand some of the linker flags.
+Currently only works if cc points to gcc - Clang (on OSX) doesn't seem to
+understand some of the linker flags.
 
 Handlers
 --------
