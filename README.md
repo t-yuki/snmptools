@@ -10,12 +10,14 @@ giving application code the ability to set OID response values.
 A thin cgo wrapper is used to link to `libsnmp`. A native Go implementation
 would be a lot better, but RFC 2741 is [long](http://tools.ietf.org/html/rfc2741#section-3.1).
 
+It can be used alongside an snmp client like [gosnmp](https://github.com/alouca/gosnmp),
+the tools that come with net-snmp or a network managing system like OpenNMS.
+
 Rationale
 ---------
 
-SNMP is a network monitoring protocol, but with an open-source Network
-Management System like [openNMS](http://www.opennms.org/) it can be used for
-monitoring at the application level.
+SNMP is a network monitoring protocol, but it can easily be extended to monitor
+at the application level; its data model is very flexible.
 
 Go's niche as a safe, statically linked systems programming language makes it
 perfect for lightweight monitoring and reporting tools with minimal impact on a
