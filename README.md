@@ -94,6 +94,7 @@ package main
 
 import "github.com/Learnosity/agentx"
 import "log"
+import "C"
 
 // OID values - our handlers will return these
 const (
@@ -111,11 +112,11 @@ func main() {
 	// Register some OID handlers
 	//
 	// The callbacks here will be invoked whenever SNMP polls for this OID.
-	agentx.AddHandler(agentx.NewStringHandler("my-string-var", stringOID, func(string, error) {
+	agentx.AddHandler(agentx.NewStringHandler("my-string-var", stringOID, func(req *C.netsnmp_request_info) (string, error) {
 		return stringVar, nil
 	})
 
-	agentx.AddHandler(agentx.NewIntHandler("my-string-var", stringOID, func(int, error) {
+	agentx.AddHandler(agentx.NewIntHandler("my-string-var", stringOID, func(req *C.netsnmp_request_info) (int, error) {
 		return intVar, nil
 	})
 
