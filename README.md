@@ -3,6 +3,8 @@ agentx
 
 An [agentx](http://en.wikipedia.org/wiki/AgentX) implementation in Go.
 
+See the [godoc page](http://godoc.org/github.com/Learnosity/agentx) for documentation.
+
 With this package, a Go process can connect to an SNMP master agent and
 register itself for certain OIDs. Callbacks are registered to these OIDs,
 giving application code the ability to set OID response values.
