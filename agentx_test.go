@@ -23,22 +23,30 @@ func TestRunAgent(t *testing.T) {
 	sig := make(chan bool, 1)
 	oid := NewOID(1, 3, 6, 1, 4, 1, 898889, 1)
 	stroid := NewOID(1, 3, 6, 1, 4, 1, 898889, 2)
+	booloid := NewOID(1, 3, 6, 1, 4, 1, 898889, 3)
 
-	var (
-		intval = 10
-		strval = "foo"
+	const (
+		intval        = 10
+		strval        = "foo"
+		boolval       = true
+		boolvalExpect = 1
 	)
 
-	h := NewIntHandler("agentx-test-int", oid, func() (int, error) {
+	h := NewIntHandler("agentx-test-int", oid, func(OID, RequestInfo) (int, error) {
 		return intval, nil
 	})
 
-	hstr := NewStringHandler("agentx-test-str", stroid, func() (string, error) {
+	hstr := NewStringHandler("agentx-test-str", stroid, func(OID, RequestInfo) (string, error) {
 		return strval, nil
+	})
+
+	hbool := NewBooleanHandler("agentx-test-bool", booloid, func(OID, RequestInfo) (bool, error) {
+		return boolval, nil
 	})
 
 	Handlers.Add(h)
 	Handlers.Add(hstr)
+	Handlers.Add(hbool)
 
 	go func() {
 		err := Run()
@@ -76,6 +84,14 @@ func TestRunAgent(t *testing.T) {
 	}
 	if strRes := resp.Variables[0].Value.([]byte); string(strRes) != strval {
 		t.Fatal("Wrong value - expected %s, got %s", strval, string(strRes))
+	}
+
+	resp, err = s.Get(booloid.String() + ".0")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if boolRes := resp.Variables[0].Value; boolRes != boolvalExpect {
+		t.Fatal("Wrong value - expected %d, got %d", boolvalExpect, boolRes)
 	}
 
 	// Now test that we can remove handlers

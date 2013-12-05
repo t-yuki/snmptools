@@ -74,6 +74,17 @@ func (h *OIDHandlers) RemoveAll() {
 	}
 }
 
+// A type wrapping a C struct - netsnmp_request_info
+// TODO - parse this into a Go struct
+type RequestInfo *C.netsnmp_request_info
+
+func registerScalar(name string, oid OID) {
+	var cname = C.CString(name)
+	defer C.free(unsafe.Pointer(cname))
+
+	C.sitemon_register_scalar(cname, &oid.C_ulong()[0], C.int(len(oid)))
+}
+
 // An OIDHandler is an interface for associating an OID with a function callback.
 type OIDHandler interface {
 	// Name() returns the name of this table - used as the index
@@ -90,7 +101,7 @@ type OIDHandler interface {
 	// If Callback() returns an error, it will be logged and snmp will be given
 	// SNMP_ERR_GENERR.
 	// (TODO - set a special typed var for an error message in this case?)
-	Callback(*C.netsnmp_request_info) error
+	Callback(OID, RequestInfo) error
 
 	// Register() registers this handler with the snmp master agent.
 	// Most Register() implementations can be very simple
@@ -109,11 +120,11 @@ type OIDHandler interface {
 type IntHandler struct {
 	name string
 	oid  OID
-	cb   func() (int, error)
+	cb   func(OID, RequestInfo) (int, error)
 }
 
 // NewIntHandler returns an IntHandler associating an oid with a callback.
-func NewIntHandler(name string, oid OID, callback func() (int, error)) *IntHandler {
+func NewIntHandler(name string, oid OID, callback func(OID, RequestInfo) (int, error)) *IntHandler {
 	return &IntHandler{name, oid, callback}
 }
 
@@ -125,8 +136,8 @@ func (h *IntHandler) OID() OID {
 	return h.oid
 }
 
-func (h *IntHandler) Callback(requests *C.netsnmp_request_info) error {
-	v, err := h.cb()
+func (h *IntHandler) Callback(oid OID, requests RequestInfo) error {
+	v, err := h.cb(oid, requests)
 	if err != nil {
 		return err
 	}
@@ -138,21 +149,64 @@ func (h *IntHandler) Callback(requests *C.netsnmp_request_info) error {
 }
 
 func (h *IntHandler) Register() error {
-	var cname = C.CString(h.Name())
-	defer C.free(unsafe.Pointer(cname))
+	registerScalar(h.Name(), h.OID())
+	return nil
+}
 
-	C.sitemon_register_scalar(cname, &h.OID().C_ulong()[0], C.int(len(h.OID())))
+// BooleanHandler is an implementation of the OIDHandler interface for Boolean types.
+//
+// Boolean is not actually a valid SNMP wire type - instead, we set an
+// AsnInteger value,ensure that it's either 0 or 1, and rely on the client and
+// the mib to determine that the value is a boolean.
+type BooleanHandler struct {
+	name string
+	oid  OID
+	cb   func(OID, RequestInfo) (bool, error)
+}
+
+func NewBooleanHandler(name string, oid OID, callback func(OID, RequestInfo) (bool, error)) *BooleanHandler {
+	return &BooleanHandler{name, oid, callback}
+}
+
+func (h *BooleanHandler) Name() string {
+	return h.name
+}
+
+func (h *BooleanHandler) OID() OID {
+	return h.oid
+}
+
+func (h *BooleanHandler) Callback(oid OID, requests RequestInfo) error {
+	var res C.int
+	v, err := h.cb(oid, requests)
+	if err != nil {
+		return err
+	}
+
+	if v {
+		res = C.int(1)
+	} else {
+		res = C.int(0)
+	}
+	log.Println(res)
+
+	C.snmp_set_var_typed_value(requests.requestvb, AsnInteger.u_char(), unsafe.Pointer(&res), C.size_t(unsafe.Sizeof(res)))
+	return nil
+}
+
+func (h *BooleanHandler) Register() error {
+	registerScalar(h.Name(), h.OID())
 	return nil
 }
 
 type StringHandler struct {
 	name    string
 	oid     OID
-	cb      func() (string, error)
+	cb      func(OID, RequestInfo) (string, error)
 	storage unsafe.Pointer
 }
 
-func NewStringHandler(name string, oid OID, callback func() (string, error)) *StringHandler {
+func NewStringHandler(name string, oid OID, callback func(OID, RequestInfo) (string, error)) *StringHandler {
 	h := &StringHandler{name, oid, callback, nil}
 
 	// Ensure that the associated storage is freed when this object is
@@ -175,8 +229,8 @@ func (h *StringHandler) OID() OID {
 	return h.oid
 }
 
-func (h *StringHandler) Callback(requests *C.netsnmp_request_info) error {
-	v, err := h.cb()
+func (h *StringHandler) Callback(oid OID, requests RequestInfo) error {
+	v, err := h.cb(oid, requests)
 	if err != nil {
 		return err
 	}
@@ -197,16 +251,12 @@ func (h *StringHandler) Callback(requests *C.netsnmp_request_info) error {
 }
 
 func (h *StringHandler) Register() error {
-	var cname = C.CString(h.Name())
-	defer C.free(unsafe.Pointer(cname))
-
-	C.sitemon_register_scalar(cname, &h.OID().C_ulong()[0], C.int(len(h.OID())))
-
+	registerScalar(h.Name(), h.OID())
 	return nil
 }
 
 //export golangReentrantHandler
-func golangReentrantHandler(cname *C.char, requests *C.netsnmp_request_info, coid *C.oid, oid_length C.int) int {
+func golangReentrantHandler(cname *C.char, requests RequestInfo, coid *C.oid, oid_length C.int) int {
 	var (
 		oid  OID
 		err  error
@@ -222,7 +272,7 @@ func golangReentrantHandler(cname *C.char, requests *C.netsnmp_request_info, coi
 
 	if h, ok := Handlers.Get(name); ok {
 
-		if err := h.Callback(requests); err != nil {
+		if err := h.Callback(oid, requests); err != nil {
 			log.Printf("Error calling callback: %v", err)
 			return C.SNMP_ERR_GENERR
 		} else {
