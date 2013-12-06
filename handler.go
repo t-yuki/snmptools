@@ -188,7 +188,6 @@ func (h *BooleanHandler) Callback(oid OID, requests RequestInfo) error {
 	} else {
 		res = C.int(0)
 	}
-	log.Println(res)
 
 	C.snmp_set_var_typed_value(requests.requestvb, AsnInteger.u_char(), unsafe.Pointer(&res), C.size_t(unsafe.Sizeof(res)))
 	return nil
