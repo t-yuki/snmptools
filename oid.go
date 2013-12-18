@@ -37,7 +37,7 @@ func (oid OID) GetRemainder(root OID) (OID, error) {
 	var partial OID
 
 	// Make sure the OIDs match
-	if len(root) > len(oid) {
+	if len(root) >= len(oid) {
 		return partial, OIDNotMatch
 	}
 
