@@ -29,8 +29,9 @@ var (
 	AlreadyRunning = fmt.Errorf("Cannot call Run() when agent is already running.")
 
 	// Type errors
-	BadValType = fmt.Errorf("Incorrect type for OID value")
-	BadOID     = fmt.Errorf("Could not convert OID from C value")
+	BadValType  = fmt.Errorf("Incorrect type for OID value")
+	BadOID      = fmt.Errorf("Could not convert OID from C value")
+	OIDNotMatch = fmt.Errorf("OIDS did not match")
 
 	// Errors from SNMP
 	SNMPERR_FAILURE = fmt.Errorf("SNMPERR_FAILURE")

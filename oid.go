@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strconv"
+	"strings"
 	"unsafe"
 )
 
@@ -15,6 +17,58 @@ type OID []uint32
 // Create a new OID
 func NewOID(num ...uint32) OID {
 	return num
+}
+
+func (oid OID) Equals(other OID) bool {
+	// Make sure the OIDs match
+	if len(other) != len(oid) {
+		return false
+	}
+	for i := 0; i < len(oid); i += 1 {
+		if oid[i] != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// GetRemainder() takes a root OID and returns a partial OID: the remaining segment
+func (oid OID) GetRemainder(root OID) (OID, error) {
+	var partial OID
+
+	// Make sure the OIDs match
+	if len(root) > len(oid) {
+		return partial, OIDNotMatch
+	}
+
+	for i := 0; i < len(root); i += 1 {
+		if root[i] != oid[i] {
+			return partial, OIDNotMatch
+		}
+	}
+
+	return oid[len(root):], nil
+}
+
+// Parse an OID from a string
+func NewOIDFromString(s string) (OID, error) {
+	var (
+		err  error
+		spl  = strings.Split(s, ".")
+		o    = make(OID, len(spl))
+		conv int
+	)
+
+	for i, val := range spl {
+		if conv, err = strconv.Atoi(val); err != nil {
+			return o, BadOID
+		} else {
+			o[i] = uint32(conv)
+		}
+	}
+
+	return o, nil
+
 }
 
 // Create an OID from the C representation
