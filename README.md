@@ -70,6 +70,12 @@ Aside from Go, you'll need `libsnmp-dev` for the code to build.
 Currently only works if cc points to gcc - Clang (on OSX) doesn't seem to
 understand some of the linker flags.
 
+To run the tests:
+
+```bash
+$ go test
+```
+
 Handlers
 --------
 

@@ -4,6 +4,7 @@ import (
 	"testing"
 )
 
+// Test parsing an OID from a Go string
 func TestGetOIDFromString(t *testing.T) {
 	var str = ".1.3.6.1.4.1.898889"
 	var expected = OID{1, 3, 6, 1, 4, 1, 898889}
@@ -27,6 +28,7 @@ func TestGetOIDFromString(t *testing.T) {
 	}
 }
 
+// Test OID equality comparisons
 func TestOIDEquals(t *testing.T) {
 	var O = NewOID
 
@@ -52,6 +54,7 @@ func TestOIDEquals(t *testing.T) {
 	}
 }
 
+// Test getting the 'remainder' of an OID by comparing an OID with a parent
 func TestGetOIDRemainder(t *testing.T) {
 	var O = NewOID
 
