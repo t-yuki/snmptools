@@ -59,7 +59,11 @@ func NewOIDFromString(s string) (OID, error) {
 		conv int
 	)
 
-	for i, val := range spl {
+	if len(spl) == 0 {
+		return o, BadOID
+	}
+
+	for i, val := range spl[1:] {
 		if conv, err = strconv.Atoi(val); err != nil {
 			return o, BadOID
 		} else {
