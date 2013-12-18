@@ -17,6 +17,32 @@ func TestMaxProcs(t *testing.T) {
 
 }
 
+func TestGetOIDFromString(t *testing.T) {
+	var str = ".1.3.6.1.4.1.898889"
+	var expected = OID{1, 3, 6, 1, 4, 1, 898889}
+
+	oid, err := NewOIDFromString(str)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	if len(oid) != len(expected) {
+		t.Error("Bad OID length")
+		t.FailNow()
+	}
+
+	fmt.Println(expected)
+	fmt.Println(oid)
+
+	for i := range oid {
+		if oid[i] != expected[i] {
+			t.Error("OIDs do not match")
+			t.FailNow()
+		}
+	}
+}
+
 // Test defining a table type, registering a table handler to an OID, running
 // the agent, retrieving some values, and retrieving the agent.
 func TestRunAgent(t *testing.T) {
