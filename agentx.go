@@ -106,6 +106,15 @@ func (t AsnType) u_char() C.u_char {
 
 }
 
+func (t AsnType) PrettyString() string {
+	s, ok := asnStrings[t]
+	if ok {
+		return s
+	} else {
+		return string(t)
+	}
+}
+
 // SNMP data types
 const (
 	AsnInteger          AsnType = 0x02
@@ -131,3 +140,13 @@ const (
 	AsnTrap             AsnType = 0xa4
 	AsnGetBulkRequest   AsnType = 0xa5
 )
+
+var asnStrings = map[AsnType]string{
+	AsnInteger:          "integer",
+	AsnGauge32:          "gauge",
+	AsnCounter32:        "counter",
+	AsnTimeTicks:        "timeticks",
+	AsnIpAddress:        "ipaddress",
+	AsnObjectIdentifier: "objectid",
+	AsnOctetString:      "string",
+}
