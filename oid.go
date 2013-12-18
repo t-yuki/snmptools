@@ -37,8 +37,10 @@ func (oid OID) GetRemainder(root OID) (OID, error) {
 	var partial OID
 
 	// Make sure the OIDs match
-	if len(root) >= len(oid) {
+	if len(root) > len(oid) {
 		return partial, OIDNotMatch
+	} else if len(root) == len(oid) {
+		return partial, nil
 	}
 
 	for i := 0; i < len(root); i += 1 {
@@ -55,13 +57,15 @@ func NewOIDFromString(s string) (OID, error) {
 	var (
 		err  error
 		spl  = strings.Split(s, ".")
-		o    = make(OID, len(spl))
+		o    OID
 		conv int
 	)
 
 	if len(spl) == 0 {
 		return o, BadOID
 	}
+
+	o = make(OID, len(spl)-1)
 
 	for i, val := range spl[1:] {
 		if conv, err = strconv.Atoi(val); err != nil {
