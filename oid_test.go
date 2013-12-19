@@ -33,8 +33,7 @@ func TestOIDEquals(t *testing.T) {
 	var O = NewOID
 
 	type OIDEqualsTest struct {
-		i        OID
-		j        OID
+		i, j     OID
 		expected bool
 	}
 
@@ -54,15 +53,35 @@ func TestOIDEquals(t *testing.T) {
 	}
 }
 
+func TestOIDAdd(t *testing.T) {
+	var O = NewOID
+
+	type OIDAddTest struct {
+		root, partial, expected OID
+	}
+
+	var tests = []OIDAddTest{
+		{O(1), O(2), O(1, 2)},
+		{O(1, 2, 3, 4, 5), O(6, 7), O(1, 2, 3, 4, 5, 6, 7)},
+		{O(1, 2, 3, 4, 5), O(), O(1, 2, 3, 4, 5)},
+		{O(), O(1, 2, 3, 4, 5), O(1, 2, 3, 4, 5)},
+	}
+
+	for _, test := range tests {
+		if !test.root.Add(test.partial).Equals(test.expected) {
+			t.Errorf("%s with %s added did not amount to %s", test.root, test.partial, test.expected)
+			t.Fail()
+		}
+	}
+}
+
 // Test getting the 'remainder' of an OID by comparing an OID with a parent
 func TestGetOIDRemainder(t *testing.T) {
 	var O = NewOID
 
 	type OIDRemainderTest struct {
-		full        OID
-		root        OID
-		expected    OID
-		expectError bool
+		full, root, expected OID
+		expectError          bool
 	}
 
 	var tests = []OIDRemainderTest{

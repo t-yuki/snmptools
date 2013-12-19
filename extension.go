@@ -22,23 +22,142 @@ var PassPersistTypes = map[AsnType]bool{
 	AsnOctetString:      true,
 }
 
-// A node in a mib tree.
-// Either the leaves or the value will be nil.
+// Can either be a leaf or a branch (i.e. a series of other leaf/branch nodes)
+//
+// Either Leaves() or Value() will be null
+//
+// The order of the leaves is significant: if the MibNode is rooted at oid
+// .1.3.6.1.4.1.89999, and its first leaf is a scalar value, that leaf will be
+// at .1.3.6.1.4.1.89999.0.
 type MibNode interface {
 	Leaves() []MibNode
 	Value() *MibLeaf
 }
 
+// Get a leaf from a MibNode.
+//
+// The OID values are treated as indices of the leaves.
+func GetLeaf(node MibNode, oid OID) MibNode {
+	var leaves []MibNode
+
+	if len(oid) == 0 {
+		// Can't get something at an empty OID
+		return nil
+
+	} else if leaves = node.Leaves(); leaves == nil {
+		// There are no leaves here - either GetLeaf has been called on a leaf
+		// or for some reason there is a branch with no leaves
+		//
+		// Try to return the Value from here, in case there's a leaf.
+		return NewLeafNode(node.Value())
+
+	} else if int(oid[0]) >= len(leaves) {
+		// No OID found - there is not a leaf at this index
+		return nil
+
+	} else if len(oid) == 1 {
+		// We're at the bottom level - return a single leaf
+		return leaves[oid[0]]
+
+	} else {
+		// We're not at the bottom - keep looking for our target recursively
+		return GetLeaf(leaves[oid[0]], oid[1:])
+
+	}
+}
+
+// Get the OID and the leaf AFTER the leaf or branch that this OID points to.
+func GetNextLeaf(node MibNode, oid OID) (OID, MibNode) {
+	// Get whatever is at this OID
+	var (
+		leaves     []MibNode
+		val        *MibLeaf
+		newOID     OID
+		thisBranch = GetLeaf(node, oid)
+	)
+
+	if thisBranch == nil {
+		return nil, nil
+
+	} else if len(oid) == 0 {
+		return nil, nil
+
+	} else if leaves = thisBranch.Leaves(); leaves != nil && len(leaves) == 0 {
+		// TODO - this shouldn't happen: leaves is non-nil but zero in length?
+		// Why would someone add a branch without adding any leaves to it?
+		return nil, nil
+
+	} else if leaves != nil && leaves[0].Value() != nil {
+		// We have a true leaf - return it
+		newOID = oid.Add(NewOID(0))
+		//return newOID, NewLeafNode(leaves[0].Value())
+		return newOID, GetLeaf(thisBranch, newOID)
+
+	} else if leaves != nil {
+		// We need to recurse down to a true leaf
+		return GetNextLeaf(leaves[0], NewOID(0))
+
+	} else if val = thisBranch.Value(); val == nil {
+		// TODO - this shouldn't happen; how can there be a MibNode where the
+		// value and leaves are both nil?
+		panic(fmt.Errorf("MibNode is nil for both Leaves() and Value(): %#v", thisBranch))
+
+	} else {
+		// This OID points DIRECTLY at a value - we need to find the next one by moving horizontally
+		// This is most easily done by incrementing the final number (TODO - is this correct?)
+		newOID = oid.Copy()
+
+		newOID[len(newOID)-1] += 1
+
+		if newNode := GetLeaf(node, newOID); newNode != nil {
+			return newOID, newNode
+		} else {
+			return nil, nil
+		}
+	}
+
+	// TODO - ??
+	return nil, nil
+
+}
+
+// A leaf of the mib tree - contains a scalar value
+//
+// Implements the MibNode interface
 type MibLeaf struct {
 	asnType AsnType
 	value   interface{}
 }
 
+// Checks that the AsnType is valid; returns BadValType if not.
+func NewMibLeaf(asnType AsnType, value interface{}) (leaf *MibLeaf, err error) {
+	leaf = new(MibLeaf)
+	if _, ok := PassPersistTypes[asnType]; !ok {
+		return leaf, BadValType
+	}
+
+	leaf.asnType = asnType
+	leaf.value = value
+
+	return
+}
+
+func (l *MibLeaf) String() string {
+	return fmt.Sprintf("MibLeaf{%s, %v}", l.asnType.PrettyString(), l.value)
+}
+
+// A branch of the mib tree - contains a series of other nodes
 type BranchNode struct {
 	leaves []MibNode
 }
 
-func NewBranchNode(leaves []MibNode) *BranchNode {
+// Create a new branch node
+//
+// If leaves is nil, a new leaf list will be created.
+func NewBranchNode(leaves ...MibNode) *BranchNode {
+	if leaves == nil {
+		leaves = make([]MibNode, 0)
+	}
 	return &BranchNode{leaves}
 }
 
@@ -50,19 +169,27 @@ func (node *BranchNode) Value() *MibLeaf {
 	return nil
 }
 
+func (node *BranchNode) AddLeaf(leaf MibNode) {
+	node.leaves = append(node.leaves, leaf)
+}
+
 type LeafNode struct {
-	leaf MibLeaf
+	leaf *MibLeaf
 }
 
-func NewLeafNode(leaf MibLeaf) *LeafNode {
-	return &LeafNode{leaf}
+func NewLeafNode(leaf *MibLeaf) LeafNode {
+	return LeafNode{leaf}
 }
 
-func (node *LeafNode) Leaves() []MibNode {
+func (node LeafNode) String() string {
+	return fmt.Sprintf("snmptools.LeafNode{leaf:*%s}", node.leaf.String())
+}
+
+func (node LeafNode) Leaves() []MibNode {
 	return nil
 }
 
-func (node *LeafNode) Value() MibLeaf {
+func (node LeafNode) Value() *MibLeaf {
 	return node.leaf
 }
 

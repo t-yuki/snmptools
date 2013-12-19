@@ -32,7 +32,16 @@ func (oid OID) Equals(other OID) bool {
 	return true
 }
 
-// GetRemainder() takes a root OID and returns a partial OID: the remaining segment
+func (oid OID) Copy() OID {
+	n := make(OID, len(oid))
+	for i, num := range oid {
+		n[i] = num
+	}
+	return n
+}
+
+// GetRemainder() takes a root OID and returns a partial OID: the remaining
+// segment
 func (oid OID) GetRemainder(root OID) (OID, error) {
 	var partial OID
 
@@ -50,6 +59,27 @@ func (oid OID) GetRemainder(root OID) (OID, error) {
 	}
 
 	return oid[len(root):], nil
+}
+
+// Add a partial OID to this root OID, returning a new OID
+func (oid OID) Add(partial OID) OID {
+	var (
+		length = len(oid) + len(partial)
+		newOID = make(OID, length)
+		i      int
+	)
+
+	// Copy in the parts of the root OID
+	for i = 0; i < len(oid); i += 1 {
+		newOID[i] = oid[i]
+	}
+
+	// Copy in the parts of the partial OID
+	for ; i < length; i += 1 {
+		newOID[i] = partial[i-len(oid)]
+	}
+
+	return newOID
 }
 
 // Parse an OID from a string
@@ -113,6 +143,9 @@ func NewOIDFromCArray(coid *C.oid, oid_length C.int) (OID, error) {
 //
 //   .1.3.6.1.4.1.898889.1.0
 func (oid OID) String() string {
+	if oid == nil {
+		return "<nil>"
+	}
 	var b = make([]byte, 0)
 	for _, num := range oid {
 		b = append(b, '.')
