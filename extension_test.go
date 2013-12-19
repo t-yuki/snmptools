@@ -8,7 +8,7 @@ import (
 func TestGetOIDFromMIBTree(t *testing.T) {
 	// Create a branch with some leaves
 	var (
-		cnt = 10
+		cnt = 11
 		O   = NewOID
 	)
 
@@ -17,7 +17,7 @@ func TestGetOIDFromMIBTree(t *testing.T) {
 
 	// Create a list of 10 leaves
 	// Add each of them to the branch
-	for i := 0; i < cnt; i += 1 {
+	for i := 1; i < cnt; i += 1 {
 		if leaf, err := NewMibLeaf(AsnInteger, i); err != nil {
 			t.Error(err)
 			t.FailNow()
@@ -37,13 +37,13 @@ func TestGetOIDFromMIBTree(t *testing.T) {
 	}
 
 	branchTests := []branchTest{
-		{O(0, 0), 0, false},
-		{O(0, 1), 1, false},
-		{O(0, 2), 2, false},
-		{O(0, 3), 3, false},
-		{O(0, 4), 4, false},
+		{O(1, 1), 1, false},
+		{O(1, 2), 2, false},
+		{O(1, 3), 3, false},
+		{O(1, 4), 4, false},
+		{O(1, 5), 5, false},
 		// A missing OID
-		{O(1, 1), -1, true},
+		{O(2, 1), -1, true},
 	}
 
 	for _, test := range branchTests {
@@ -63,7 +63,7 @@ func TestGetOIDFromMIBTree(t *testing.T) {
 		}
 
 		if v, ok := val.value.(int); !ok || v != test.expected {
-			t.Error("Got the wrong value")
+			t.Errorf("Got the wrong value: got %d, expected %d", v, test.expected)
 			t.Fail()
 		}
 	}
@@ -73,7 +73,7 @@ func TestGetOIDFromMIBTree(t *testing.T) {
 func TestGetNextOIDFromMIBTree(t *testing.T) {
 	// Create a branch with some leaves
 	var (
-		cnt = 10
+		cnt = 11
 		O   = NewOID
 	)
 
@@ -84,7 +84,7 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 
 	// Create a list of 10 leaves
 	// Add each of them to the branch
-	for i := 0; i < cnt; i += 1 {
+	for i := 1; i < cnt; i += 1 {
 		if leaf, err := NewMibLeaf(AsnInteger, i); err != nil {
 			t.Error(err)
 			t.FailNow()
@@ -110,18 +110,19 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 	}
 
 	branchTests := []branchTest{
-		{O(0), O(0, 0), 0, false},
-		{O(0, 0), O(0, 1), 1, false},
-		{O(0, 1), O(0, 2), 2, false},
-		{O(0, 2), O(0, 3), 3, false},
-		{O(0, 3), O(0, 4), 4, false},
-		{O(0, 4), O(0, 5), 5, false},
+		{O(0), O(1, 1), 1, false},
+		{O(1), O(1, 1), 1, false},
 		{O(1, 1), O(1, 2), 2, false},
+		{O(1, 2), O(1, 3), 3, false},
+		{O(1, 3), O(1, 4), 4, false},
+		{O(1, 4), O(1, 5), 5, false},
+		{O(1, 5), O(1, 6), 6, false},
 		{O(2, 1), O(2, 2), 2, false},
+		{O(3, 1), O(3, 2), 2, false},
 
 		// Some missing / invalid ones
-		{O(0, 9), nil, -1, true},
-		{O(3, 1), nil, -1, true},
+		{O(1, 10), nil, -1, true},
+		{O(4, 1), nil, -1, true},
 		{O(), nil, -1, true},
 	}
 

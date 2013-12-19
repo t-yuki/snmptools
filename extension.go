@@ -51,17 +51,17 @@ func GetLeaf(node MibNode, oid OID) MibNode {
 		// Try to return the Value from here, in case there's a leaf.
 		return NewLeafNode(node.Value())
 
-	} else if int(oid[0]) >= len(leaves) {
+	} else if int(oid[0])-1 >= len(leaves) {
 		// No OID found - there is not a leaf at this index
 		return nil
 
 	} else if len(oid) == 1 {
 		// We're at the bottom level - return a single leaf
-		return leaves[oid[0]]
+		return leaves[oid[0]-1]
 
 	} else {
 		// We're not at the bottom - keep looking for our target recursively
-		return GetLeaf(leaves[oid[0]], oid[1:])
+		return GetLeaf(leaves[oid[0]-1], oid[1:])
 
 	}
 }
@@ -73,13 +73,21 @@ func GetNextLeaf(node MibNode, oid OID) (OID, MibNode) {
 		leaves     []MibNode
 		val        *MibLeaf
 		newOID     OID
-		thisBranch = GetLeaf(node, oid)
+		thisBranch MibNode
 	)
 
-	if thisBranch == nil {
+	if len(oid) == 0 {
+		// An OID can't be empty
 		return nil, nil
+	}
 
-	} else if len(oid) == 0 {
+	if oid[len(oid)-1] == 0 {
+		// An OID can't be at .0 for its last value; we return the .1
+		oid = oid.Copy()
+		oid[len(oid)-1] = 1
+	}
+
+	if thisBranch = GetLeaf(node, oid); thisBranch == nil {
 		return nil, nil
 
 	} else if leaves = thisBranch.Leaves(); leaves != nil && len(leaves) == 0 {
@@ -89,26 +97,28 @@ func GetNextLeaf(node MibNode, oid OID) (OID, MibNode) {
 
 	} else if leaves != nil && leaves[0].Value() != nil {
 		// We have a true leaf - return it
-		newOID = oid.Add(NewOID(0))
+		newOID = oid.Add(NewOID(1))
 		//return newOID, NewLeafNode(leaves[0].Value())
 		return newOID, GetLeaf(thisBranch, newOID)
 
 	} else if leaves != nil {
 		// We need to recurse down to a true leaf
-		return GetNextLeaf(leaves[0], NewOID(0))
+		return GetNextLeaf(leaves[0], NewOID(1))
 
 	} else if val = thisBranch.Value(); val == nil {
-		// TODO - this shouldn't happen; how can there be a MibNode where the
+		// This shouldn't happen; how can there be a MibNode where the
 		// value and leaves are both nil?
 		panic(fmt.Errorf("MibNode is nil for both Leaves() and Value(): %#v", thisBranch))
 
 	} else {
-		// This OID points DIRECTLY at a value - we need to find the next one by moving horizontally
-		// This is most easily done by incrementing the final number (TODO - is this correct?)
+		// This OID points DIRECTLY at a value - we need to find the next one
+		// by moving horizontally. This is most easily done by incrementing the
+		// final number.
 		newOID = oid.Copy()
-
 		newOID[len(newOID)-1] += 1
 
+		// We call GetLeaf with the node that the function was given, not with
+		// the branch we've been looking at.
 		if newNode := GetLeaf(node, newOID); newNode != nil {
 			return newOID, newNode
 		} else {
