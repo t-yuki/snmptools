@@ -1,16 +1,21 @@
-agentx
-======
+snmptools
+=========
 
-An [agentx](http://en.wikipedia.org/wiki/AgentX) implementation in Go.
+An SNMP library with various helpers, including:
 
-See the [godoc page](http://godoc.org/github.com/Learnosity/agentx) for documentation.
+* an OID type
+* an [agentx](http://en.wikipedia.org/wiki/AgentX) implementation
+* a framework for running Go code as an snmp [pass persist extension](http://www.net-snmp.org/wiki/index.php/Tut:Extending_snmpd_using_shell_scripts)
+
+See the [godoc page](http://godoc.org/github.com/Learnosity/snmptools) for documentation.
 
 With this package, a Go process can connect to an SNMP master agent and
 register itself for certain OIDs. Callbacks are registered to these OIDs,
 giving application code the ability to set OID response values.
 
-A thin cgo wrapper is used to link to `libsnmp`. A native Go implementation
-would be a lot better, but RFC 2741 is [long](http://tools.ietf.org/html/rfc2741#section-3.1).
+For agentx, a thin cgo wrapper is used to link to `libsnmp`. A native Go
+implementation would be a lot better, but RFC 2741 is
+[long](http://tools.ietf.org/html/rfc2741#section-3.1).
 
 It can be used alongside an snmp client like [gosnmp](https://github.com/alouca/gosnmp),
 the tools that come with net-snmp or a network managing system like OpenNMS.
