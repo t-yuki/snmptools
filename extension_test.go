@@ -13,21 +13,21 @@ func TestGetOIDFromMIBTree(t *testing.T) {
 	)
 
 	// Create a branch
-	branch := NewBranchNode()
+	branch := NewSMISubtree()
 
 	// Create a list of 10 leaves
 	// Add each of them to the branch
 	for i := 1; i < cnt; i += 1 {
-		if leaf, err := NewMibLeaf(AsnInteger, i); err != nil {
+		if leaf, err := NewSMILeaf(AsnInteger, i); err != nil {
 			t.Error(err)
 			t.FailNow()
 		} else {
-			branch.AddLeaf(NewLeafNode(leaf))
+			branch.AddChild(NewLeafNode(leaf))
 		}
 	}
 
 	// Create a higher level branch
-	outerBranch := NewBranchNode(branch)
+	outerBranch := NewSMISubtree(branch)
 
 	// Now try to get some leaves!
 	type branchTest struct {
@@ -78,28 +78,28 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 	)
 
 	// Create a branch
-	branchOne := NewBranchNode()
-	branchTwo := NewBranchNode()
-	branchThree := NewBranchNode()
+	branchOne := NewSMISubtree()
+	branchTwo := NewSMISubtree()
+	branchThree := NewSMISubtree()
 
 	// Create a list of 10 leaves
 	// Add each of them to the branch
 	for i := 1; i < cnt; i += 1 {
-		if leaf, err := NewMibLeaf(AsnInteger, i); err != nil {
+		if leaf, err := NewSMILeaf(AsnInteger, i); err != nil {
 			t.Error(err)
 			t.FailNow()
 		} else {
-			branchOne.AddLeaf(NewLeafNode(leaf))
-			branchTwo.AddLeaf(NewLeafNode(leaf))
-			branchThree.AddLeaf(NewLeafNode(leaf))
+			branchOne.AddChild(NewLeafNode(leaf))
+			branchTwo.AddChild(NewLeafNode(leaf))
+			branchThree.AddChild(NewLeafNode(leaf))
 		}
 	}
 
 	// Create a higher level branch
-	outerBranch := NewBranchNode()
-	outerBranch.AddLeaf(branchOne)
-	outerBranch.AddLeaf(branchTwo)
-	outerBranch.AddLeaf(branchThree)
+	outerBranch := NewSMISubtree()
+	outerBranch.AddChild(branchOne)
+	outerBranch.AddChild(branchTwo)
+	outerBranch.AddChild(branchThree)
 
 	// Now try to get some leaves!
 	type branchTest struct {

@@ -22,29 +22,33 @@ var PassPersistTypes = map[AsnType]bool{
 	AsnOctetString:      true,
 }
 
-// Can either be a leaf or a branch (i.e. a series of other leaf/branch nodes)
+// SMINode is a node in the SMI tree.
 //
-// Either Leaves() or Value() will be null
+// Each node is either a subtree or a leaf.
 //
-// The order of the leaves is significant: if the MibNode is rooted at oid
-// .1.3.6.1.4.1.89999, and its first leaf is a scalar value, that leaf will be
-// at .1.3.6.1.4.1.89999.0.
-type MibNode interface {
-	Leaves() []MibNode
-	Value() *MibLeaf
+// If the node is a subtree, Children() returns the child nodes and Value() will be nil.
+// Conversely, if the node is a leaf, Children() will be nil and Value() returns an SMILeaf.
+//
+// For subtrees, the order of the children is significant: the indices of the array correspond to the sequential child OIDs.
+// For example, if the SMINode is a subtree located at .1.3.6.1.4.1.89999, its first child corresponds to 1.3.6.1.4.1.89999.1
+type SMINode interface {
+	Children() []SMINode
+	Value() *SMILeaf
 }
 
-// Get a leaf from a MibNode.
+// GetLeaf gets a leaf from an SMINode by OID.
 //
-// The OID values are treated as indices of the leaves.
-func GetLeaf(node MibNode, oid OID) MibNode {
-	var leaves []MibNode
+// The OID is expected to be relative to the node: for example OID(1, 3) will return the third child of the first child of this node.
+//
+// If the target OID does not match the structure of the node, the return value will be nil.
+func GetLeaf(node SMINode, oid OID) SMINode {
+	var leaves []SMINode
 
 	if len(oid) == 0 {
 		// Can't get something at an empty OID
 		return nil
 
-	} else if leaves = node.Leaves(); leaves == nil {
+	} else if leaves = node.Children(); leaves == nil {
 		// There are no leaves here - either GetLeaf has been called on a leaf
 		// or for some reason there is a branch with no leaves
 		//
@@ -66,14 +70,20 @@ func GetLeaf(node MibNode, oid OID) MibNode {
 	}
 }
 
-// Get the OID and the leaf AFTER the leaf or branch that this OID points to.
-func GetNextLeaf(node MibNode, oid OID) (OID, MibNode) {
+// GetNextLeaf gets the next leaf AFTER the targeted OID from this subtree.
+// For example, if called with .1.3.6.1, the node at .1.3.6.2 may be returned.
+//
+// The search only goes horizontally or downward in the tree from the given
+// OID: it will not move upward.
+//
+// For example , if called with .1.3.6.1.9, GetNextLeaf() it will never return .1.3.6.2.0
+func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 	// Get whatever is at this OID
 	var (
-		leaves     []MibNode
-		val        *MibLeaf
+		leaves     []SMINode
+		val        *SMILeaf
 		newOID     OID
-		thisBranch MibNode
+		thisBranch SMINode
 	)
 
 	if len(oid) == 0 {
@@ -90,7 +100,7 @@ func GetNextLeaf(node MibNode, oid OID) (OID, MibNode) {
 	if thisBranch = GetLeaf(node, oid); thisBranch == nil {
 		return nil, nil
 
-	} else if leaves = thisBranch.Leaves(); leaves != nil && len(leaves) == 0 {
+	} else if leaves = thisBranch.Children(); leaves != nil && len(leaves) == 0 {
 		// TODO - this shouldn't happen: leaves is non-nil but zero in length?
 		// Why would someone add a branch without adding any leaves to it?
 		return nil, nil
@@ -108,7 +118,7 @@ func GetNextLeaf(node MibNode, oid OID) (OID, MibNode) {
 	} else if val = thisBranch.Value(); val == nil {
 		// This shouldn't happen; how can there be a MibNode where the
 		// value and leaves are both nil?
-		panic(fmt.Errorf("MibNode is nil for both Leaves() and Value(): %#v", thisBranch))
+		panic(fmt.Errorf("MibNode is nil for both Children() and Value(): %#v", thisBranch))
 
 	} else {
 		// This OID points DIRECTLY at a value - we need to find the next one
@@ -131,17 +141,18 @@ func GetNextLeaf(node MibNode, oid OID) (OID, MibNode) {
 
 }
 
-// A leaf of the mib tree - contains a scalar value
+// SMILeaf is a leaf in the mib tree. It has an ASN.1 type and a value.
 //
-// Implements the MibNode interface
-type MibLeaf struct {
+// The valid AsnTypes are limited to those in the PassPersistTypes variable.
+type SMILeaf struct {
 	asnType AsnType
 	value   interface{}
 }
 
-// Checks that the AsnType is valid; returns BadValType if not.
-func NewMibLeaf(asnType AsnType, value interface{}) (leaf *MibLeaf, err error) {
-	leaf = new(MibLeaf)
+// NewSMILeaf() creates a new SMILeaf. Returns BadValType as the error if the
+// type is not vaild.
+func NewSMILeaf(asnType AsnType, value interface{}) (leaf *SMILeaf, err error) {
+	leaf = new(SMILeaf)
 	if _, ok := PassPersistTypes[asnType]; !ok {
 		return leaf, BadValType
 	}
@@ -152,42 +163,50 @@ func NewMibLeaf(asnType AsnType, value interface{}) (leaf *MibLeaf, err error) {
 	return
 }
 
-func (l *MibLeaf) String() string {
+func (l *SMILeaf) String() string {
 	return fmt.Sprintf("MibLeaf{%s, %v}", l.asnType.PrettyString(), l.value)
 }
 
-// A branch of the mib tree - contains a series of other nodes
-type BranchNode struct {
-	leaves []MibNode
+// SMISubtree is a branch in the mib tree, containing a series of other trees
+// or leaves as its children.
+//
+// Implements the SMINode interface.
+type SMISubtree struct {
+	leaves []SMINode
 }
 
 // Create a new branch node
 //
-// If leaves is nil, a new leaf list will be created.
-func NewBranchNode(leaves ...MibNode) *BranchNode {
+// NewSMISubtree() creates a new SMISubtree, optionally taking a list of initial leaves.
+func NewSMISubtree(leaves ...SMINode) *SMISubtree {
 	if leaves == nil {
-		leaves = make([]MibNode, 0)
+		leaves = make([]SMINode, 0)
 	}
-	return &BranchNode{leaves}
+	return &SMISubtree{leaves}
 }
 
-func (node *BranchNode) Leaves() []MibNode {
+func (node *SMISubtree) Children() []SMINode {
 	return node.leaves
 }
 
-func (node *BranchNode) Value() *MibLeaf {
+func (node *SMISubtree) Value() *SMILeaf {
 	return nil
 }
 
-func (node *BranchNode) AddLeaf(leaf MibNode) {
+// AddChild() adds a child leaf or subtree to the SMISubTree.
+func (node *SMISubtree) AddChild(leaf SMINode) {
 	node.leaves = append(node.leaves, leaf)
 }
 
+// LeafNode is a leaf in the mib tree, containing a scalar value.
+//
+// Implements the SMINode interface.
 type LeafNode struct {
-	leaf *MibLeaf
+	leaf *SMILeaf
 }
 
-func NewLeafNode(leaf *MibLeaf) LeafNode {
+// NewLeafNode() creates a LeafNode.
+func NewLeafNode(leaf *SMILeaf) LeafNode {
 	return LeafNode{leaf}
 }
 
@@ -195,78 +214,62 @@ func (node LeafNode) String() string {
 	return fmt.Sprintf("snmptools.LeafNode{leaf:*%s}", node.leaf.String())
 }
 
-func (node LeafNode) Leaves() []MibNode {
+func (node LeafNode) Children() []SMINode {
 	return nil
 }
 
-func (node LeafNode) Value() *MibLeaf {
+func (node LeafNode) Value() *SMILeaf {
 	return node.leaf
 }
 
+// passPersistState encapsulates the various states the pass persist handler can be in.
 type passPersistState int
 
 const (
-	Wait passPersistState = iota
-	Get
-	GetNext
-	Shutdown
-	ErrorState
+	waitState passPersistState = iota
+	getState
+	getNextState
+	shutdownState
+	errorState
 )
 
-// PassPersistExtension
+// PassPersistExtension is a type holding the state of a pass persist connection with snmpd.
 //
-//
+// This type can be used to run the process as a child of snmpd, talking to it over STDIO.
 type PassPersistExtension struct {
 	input        io.Reader
 	output       io.Writer
-	callback     func() MibNode
+	callback     func() SMINode
 	root         OID
 	currentState passPersistState
 
-	mibTree MibNode
+	mibTree SMINode
 
 	lines  chan string
 	errors chan error
 }
 
-func NewPassPersistExtension(input io.Reader, output io.Writer, callback func() MibNode, root OID) *PassPersistExtension {
+// NewPassPersistExtension() creates a PassPersistExtension object for storing
+// the state of the pass persist protocol between the current process and the
+// snmpd daemon.
+func NewPassPersistExtension(input io.Reader, output io.Writer, callback func() SMINode, root OID) *PassPersistExtension {
 	return &PassPersistExtension{
 		input:        input,
 		output:       output,
 		callback:     callback,
 		root:         root,
-		currentState: Wait,
+		currentState: waitState,
 		mibTree:      nil,
 		lines:        make(chan string),
 		errors:       make(chan error),
 	}
 }
 
-// Find this OID, assuming it's a child of the root OID we are registered at
+// Serve() starts communicating with snmpd over STDIO.
 //
-// Returns nil if it's not found.
-func (ppe *PassPersistExtension) GetLeaf(partial OID) (leaf *MibLeaf, err error) {
-	if partial, err = partial.GetRemainder(ppe.root); err != nil {
-		return
-	}
-
-	// TODO - find this leaf
-	return
-}
-
-func (ppe *PassPersistExtension) GetLeafAfter(partial OID) (leaf *MibLeaf, err error) {
-	if partial, err = partial.GetRemainder(ppe.root); err != nil {
-		return
-	}
-
-	// TODO - find the leaf AFTER this one..
-	return
-}
-
-// Wait responding to requests with the given input and output streams.
-//
-// Whenever the root OID is requested, the callback provided to the initializer
-// is called, allowing calling code an opportunity to update the MIB state.
+// Whenever the root OID that we are registered at is requested, the callback
+// that was provided to the initialisation function is called, giving
+// client code the opportunity to update the SMINode that is being traversed.
 func (ppe *PassPersistExtension) Serve() error {
 	var (
 		nextState passPersistState
@@ -274,24 +277,29 @@ func (ppe *PassPersistExtension) Serve() error {
 		line      string
 	)
 
-	// Get the initial mib state
+	// Get the initial MIB state
 	ppe.mibTree = ppe.callback()
 
-	// Wait up a goroutine to scan the input stream for lines
+	// Set up a goroutine to scan the input stream for lines
 	go ppe.scanInput()
 
 	for {
+		// Handle all the lines, or any error that comes up from input
+		// handling.
 		select {
+
 		case err, _ = <-ppe.errors:
 			return err
+
 		case line = <-ppe.lines:
 			if nextState, err = ppe.handleLine(line); err != nil {
 				return err
-			} else if nextState == Shutdown {
+			} else if nextState == shutdownState {
 				return nil
 			} else {
 				ppe.currentState = nextState
 			}
+
 		}
 	}
 
@@ -322,88 +330,56 @@ func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, erro
 	)
 
 	switch ppe.currentState {
-	case Wait:
+	case waitState:
 		switch strings.ToLower(line) {
 		case "":
-			return Shutdown, nil
+			return shutdownState, nil
 		case "ping":
 			fmt.Fprintf(ppe.output, "PONG\n")
 		case "get":
-			return Get, nil
+			return getState, nil
 		case "getnext":
-			return GetNext, nil
+			return getNextState, nil
 		default:
 			// TODO - error?
 		}
 
-	case Get:
-		var leaf *MibLeaf
+	case getState, getNextState:
+		var leaf SMINode
 
 		// GET is simple - it must just emit the requested OID
 		if oid, err = NewOIDFromString(line); err != nil {
-			return ErrorState, err
+			return errorState, err
 		}
 
 		if oid.Equals(ppe.root) {
+			// Request is for the root OID - update the MIB tree
 			ppe.mibTree = ppe.callback()
 		}
 
 		if partial, err = oid.GetRemainder(ppe.root); err != nil {
-			return ErrorState, err
+			return errorState, err
 		}
 
-		if leaf, err = ppe.GetLeaf(partial); err != nil && err == NodeNotFound {
-			return ErrorState, err
-		} else if leaf == nil {
-			// No value at this node - bail out
-			fmt.Fprintf(ppe.output, "\n")
-			return Wait, nil
+		// Call either GetLeaf or GetNextLeaf depending on whether we got getState or getNextState
+		if ppe.currentState == getState {
+			leaf = GetLeaf(ppe.mibTree, partial)
+		} else if ppe.currentState == getNextState {
+			oid, leaf = GetNextLeaf(ppe.mibTree, oid)
+		}
+
+		if leaf == nil || oid == nil {
+			fmt.Fprintf(ppe.output, "None\n")
 		} else {
-			// Print out this node
-			fmt.Fprintf(ppe.output, "%s\n%s\n%s\n", oid, leaf.asnType.PrettyString(), leaf.value)
+			fmt.Fprintf(ppe.output, "%s\n%s\n%s\n", oid, leaf.Value().asnType.PrettyString(), leaf.Value().value)
 		}
 
-	case GetNext:
-		// If a GETNEXT is issued on an object that does not exist, the agent
-		// MUST return the next instance in the MIB tree that does exist
-		//
-		// If a GETNEXT is issued for an object that does exist, the agent MUST
-		// skip this entry and find the next instance in the MIB tree to return
-		//
-		// If no more MIB objects exist in the MIB tree then an 'End of MIB'
-		// exception is returned
-		//
-		// Over the pass / pass_persist protocol with netsnmp's snmpd, a
-		// newline is considered equivalent to 'End Of MIB'
-		var leaf *MibLeaf
+		return waitState, nil
 
-		if oid, err = NewOIDFromString(line); err != nil {
-			return ErrorState, err
-		}
+	default:
+		// TODO - ??
 
-		if oid.Equals(ppe.root) {
-			ppe.mibTree = ppe.callback()
-		}
-
-		if partial, err = oid.GetRemainder(ppe.root); err != nil {
-			return ErrorState, err
-		}
-
-		if leaf, err = ppe.GetLeafAfter(partial); err != nil {
-			return ErrorState, err
-		} else if leaf == nil {
-			// No value at this node - bail out
-			fmt.Fprintf(ppe.output, "\n")
-			return Wait, nil
-		} else {
-			// Print out this node
-			fmt.Fprintf(ppe.output, "%s\n%s\n%s\n", oid, leaf.asnType.PrettyString(), leaf.value)
-		}
-
-		// TODO - traverse the tree to find this OID and then emit the _next_
-		// one
 	}
 
-	return Wait, nil
-
+	return waitState, nil
 }
