@@ -119,11 +119,11 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 		{O(1, 5), O(1, 6), 6, false},
 		{O(2, 1), O(2, 2), 2, false},
 		{O(3, 1), O(3, 2), 2, false},
+		{O(1, 10), O(2, 1), 1, false},
 
+		{O(), O(1, 1), 1, false},
 		// Some missing / invalid ones
-		{O(1, 10), nil, -1, true},
 		{O(4, 1), nil, -1, true},
-		{O(), nil, -1, true},
 	}
 
 	for _, test := range branchTests {

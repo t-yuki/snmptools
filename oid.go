@@ -49,7 +49,7 @@ func (oid OID) GetRemainder(root OID) (OID, error) {
 	if len(root) > len(oid) {
 		return partial, OIDNotMatch
 	} else if len(root) == len(oid) {
-		return partial, nil
+		return NewOID(), nil
 	}
 
 	for i := 0; i < len(root); i += 1 {

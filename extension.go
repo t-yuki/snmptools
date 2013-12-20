@@ -4,12 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/syslog"
 	"strings"
 )
 
-var (
-	NodeNotFound = fmt.Errorf("Could not find a node at this OID")
-)
+var logger *syslog.Writer
 
 // According to the docs for pass, only these ASN types are valid
 var PassPersistTypes = map[AsnType]bool{
@@ -42,6 +41,7 @@ type SMINode interface {
 //
 // If the target OID does not match the structure of the node, the return value will be nil.
 func GetLeaf(node SMINode, oid OID) SMINode {
+	logger.Debug(fmt.Sprintf("GetLeaf was called with %s", oid))
 	var leaves []SMINode
 
 	if len(oid) == 0 {
@@ -73,12 +73,13 @@ func GetLeaf(node SMINode, oid OID) SMINode {
 // GetNextLeaf gets the next leaf AFTER the targeted OID from this subtree.
 // For example, if called with .1.3.6.1, the node at .1.3.6.2 may be returned.
 //
-// The search only goes horizontally or downward in the tree from the given
-// OID: it will not move upward.
+// The search first tries to move horizontally, but it will move upward when
+// the current subtree is exhausted.
 //
 // For example , if called with .1.3.6.1.9, GetNextLeaf() it will never return .1.3.6.2.0
 func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 	// Get whatever is at this OID
+	logger.Debug(fmt.Sprintf("GetNextLeaf was called with %s", oid))
 	var (
 		leaves     []SMINode
 		val        *SMILeaf
@@ -87,8 +88,8 @@ func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 	)
 
 	if len(oid) == 0 {
-		// An OID can't be empty
-		return nil, nil
+		// An OID can't be empty - add a .1
+		oid = oid.Copy().Add(NewOID(1))
 	}
 
 	if oid[len(oid)-1] == 0 {
@@ -131,7 +132,20 @@ func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 		// the branch we've been looking at.
 		if newNode := GetLeaf(node, newOID); newNode != nil {
 			return newOID, newNode
+
 		} else {
+
+			for len(newOID) > 0 {
+
+				// Copy off the last value and increment the second-last value
+				newOID = newOID[:len(newOID)-1]
+				newOID[len(newOID)-1] += 1
+
+				if n := GetLeaf(node, newOID.Add(NewOID(1))); n != nil {
+					return newOID.Add(NewOID(1)), n
+				}
+
+			}
 			return nil, nil
 		}
 	}
@@ -185,6 +199,30 @@ func NewSMISubtree(leaves ...SMINode) *SMISubtree {
 	return &SMISubtree{leaves}
 }
 
+func (node *SMISubtree) String() string {
+	var b = make([]byte, 0)
+
+	b = append(b, []byte("SMISubTree{")...)
+
+	if node.leaves != nil {
+		for i, child := range node.leaves {
+			if i > 0 {
+				b = append(b, []byte(", ")...)
+			}
+
+			if child.Children() != nil {
+				b = append(b, []byte(child.(*SMISubtree).String())...)
+			} else if child.Value() != nil {
+				b = append(b, []byte(child.Value().String())...)
+			}
+		}
+	}
+
+	b = append(b, []byte("}")...)
+
+	return string(b)
+}
+
 func (node *SMISubtree) Children() []SMINode {
 	return node.leaves
 }
@@ -225,6 +263,10 @@ func (node LeafNode) Value() *SMILeaf {
 // passPersistState encapsulates the various states the pass persist handler can be in.
 type passPersistState int
 
+func (s passPersistState) String() string {
+	return stateStrings[int(s)]
+}
+
 const (
 	waitState passPersistState = iota
 	getState
@@ -232,6 +274,14 @@ const (
 	shutdownState
 	errorState
 )
+
+var stateStrings = []string{
+	"wait",
+	"get",
+	"getNext",
+	"shutdown",
+	"error",
+}
 
 // PassPersistExtension is a type holding the state of a pass persist connection with snmpd.
 //
@@ -278,7 +328,7 @@ func (ppe *PassPersistExtension) Serve() error {
 	)
 
 	// Get the initial MIB state
-	ppe.mibTree = ppe.callback()
+	ppe.update()
 
 	// Set up a goroutine to scan the input stream for lines
 	go ppe.scanInput()
@@ -305,6 +355,11 @@ func (ppe *PassPersistExtension) Serve() error {
 
 }
 
+func (ppe *PassPersistExtension) update() {
+	ppe.mibTree = ppe.callback()
+	logger.Debug(fmt.Sprintf("Updated mib tree: %s", ppe.mibTree))
+}
+
 func (ppe *PassPersistExtension) scanInput() {
 	scanner := bufio.NewScanner(ppe.input)
 
@@ -315,7 +370,6 @@ func (ppe *PassPersistExtension) scanInput() {
 
 	// The above loop escapes once the input stream has EOF
 	if err := scanner.Err(); err != nil {
-		ppe.errors <- err
 	}
 
 	close(ppe.errors)
@@ -324,6 +378,7 @@ func (ppe *PassPersistExtension) scanInput() {
 
 // handleLine contains the core protocol handling
 func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, error) {
+	logger.Debug(fmt.Sprintf("Handling line: %s in %s state", line, ppe.currentState))
 	var (
 		oid, partial OID
 		err          error
@@ -354,7 +409,7 @@ func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, erro
 
 		if oid.Equals(ppe.root) {
 			// Request is for the root OID - update the MIB tree
-			ppe.mibTree = ppe.callback()
+			ppe.update()
 		}
 
 		if partial, err = oid.GetRemainder(ppe.root); err != nil {
@@ -364,13 +419,19 @@ func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, erro
 		// Call either GetLeaf or GetNextLeaf depending on whether we got getState or getNextState
 		if ppe.currentState == getState {
 			leaf = GetLeaf(ppe.mibTree, partial)
+
 		} else if ppe.currentState == getNextState {
-			oid, leaf = GetNextLeaf(ppe.mibTree, oid)
+			oid, leaf = GetNextLeaf(ppe.mibTree, partial)
+
+			// Combine the root OID with the OID we gave to the subtree to get
+			// what we'll use for the response
+			oid = ppe.root.Add(oid)
 		}
 
 		if leaf == nil || oid == nil {
 			fmt.Fprintf(ppe.output, "None\n")
 		} else {
+			logger.Debug(fmt.Sprintf("Responding with OID %s, val %s", oid, leaf.Value()))
 			fmt.Fprintf(ppe.output, "%s\n%s\n%s\n", oid, leaf.Value().asnType.PrettyString(), leaf.Value().value)
 		}
 
@@ -382,4 +443,11 @@ func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, erro
 	}
 
 	return waitState, nil
+}
+
+func init() {
+	var err error
+	if logger, err = syslog.New(syslog.LOG_LOCAL0, "snmptools"); err != nil {
+		panic(err)
+	}
 }
