@@ -1,4 +1,4 @@
-package agentx
+package snmptools
 
 import (
 	"bufio"

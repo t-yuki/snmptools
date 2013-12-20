@@ -8,4 +8,4 @@
 // time.
 //
 // See https://github.com/Learnosity/agentx/blob/master/README.md for more.
-package agentx
+package snmptools

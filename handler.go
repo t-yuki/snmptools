@@ -1,4 +1,4 @@
-package agentx
+package snmptools
 
 // #include "sitemon_agent.h"
 import "C"

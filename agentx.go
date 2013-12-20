@@ -1,4 +1,4 @@
-package agentx
+package snmptools
 
 // #cgo LDFLAGS: -Wl,-Bsymbolic-functions -Wl,-z,relro -Wl,-z,now -L/usr/lib/i386-linux-gnu -lnetsnmpmibs -lsensors -ldl -lnetsnmpagent -lwrap -Wl,-E -lnetsnmp -lrt -lcrypto -lm
 // #include "sitemon_agent.h"
