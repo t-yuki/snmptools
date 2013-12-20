@@ -5,7 +5,7 @@ An SNMP library with various helpers, including:
 
 * an OID type
 * an [agentx](http://en.wikipedia.org/wiki/AgentX) implementation
-* a framework for running Go code as an snmp [pass persist extension](http://www.net-snmp.org/wiki/index.php/Tut:Extending_snmpd_using_shell_scripts)
+* a framework for running Go code as an snmp [pass persist extension](http://www.net-snmp.org/wiki/index.php/Tut:Extending_snmpd_using_shell_scripts). This works, but it's a work-in-progress and not documented yet.
 
 See the [godoc page](http://godoc.org/github.com/Learnosity/snmptools) for documentation.
 
