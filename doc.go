@@ -1,11 +1,11 @@
-// package agentx implements a snmp agent in Go.
+// package snmptools implements various snmp helpers in Go.
 //
-// This package intends to expose control over read-only snmp variables to the
-// Go stack. A light cgo layer is used to interface with libsnmp.
+// The package is focused on allowing Go code to run as an snmp subagent.
 //
-// If the agentx master socket is not at /var/agentx/master,
-// agentx.MasterSocket must be changed prior to calling Run() for the first
-// time.
+// Includes:
 //
-// See https://github.com/Learnosity/agentx/blob/master/README.md for more.
+// * an OID type
+// * a framework for running Go code as a net-snmp agent extension
+//
+// See https://github.com/Learnosity/snmptools/blob/master/README.md for more.
 package snmptools
