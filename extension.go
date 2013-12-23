@@ -435,7 +435,7 @@ func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, erro
 			fmt.Fprintf(ppe.output, "None\n")
 		} else {
 			logger.Debug(fmt.Sprintf("Responding to %v request for %s with OID %s, val %s", ppe.currentState, ppe.root.Add(partial), oid, leaf.Value()))
-			fmt.Fprintf(ppe.output, "%s\n%s\n%s\n", oid, leaf.Value().asnType.PrettyString(), leaf.Value().value)
+			fmt.Fprintf(ppe.output, "%s\n%s\n%v\n", oid, leaf.Value().asnType.PrettyString(), leaf.Value().value)
 		}
 
 		return waitState, nil
