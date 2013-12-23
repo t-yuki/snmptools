@@ -76,6 +76,8 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 	branchOne := NewSMISubtree()
 	branchTwo := NewSMISubtree()
 	branchThree := NewSMISubtree()
+	branchFour := NewSMISubtree()
+	branchFive := NewSMISubtree()
 
 	// Create a list of 10 leaves
 	// Add each of them to the branch
@@ -83,13 +85,21 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 		branchOne.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
 		branchTwo.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
 		branchThree.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
+		branchFour.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
+		branchFive.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
 	}
+
+	// Branches four and five branch will be fiddly - nested a little more
+	intermediateBranch := NewSMISubtree()
+	intermediateBranch.AddChild(branchFour)
+	intermediateBranch.AddChild(branchFive)
 
 	// Create a higher level branch
 	outerBranch := NewSMISubtree()
 	outerBranch.AddChild(branchOne)
 	outerBranch.AddChild(branchTwo)
 	outerBranch.AddChild(branchThree)
+	outerBranch.AddChild(intermediateBranch)
 
 	// Now try to get some leaves!
 	type branchTest struct {
@@ -111,9 +121,13 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 		{O(3, 1), O(3, 2), 2, false},
 		{O(1, 10), O(2, 1), 1, false},
 
+		{O(3, 10), O(4, 1, 1), 1, false},
+		{O(4, 1, 1), O(4, 1, 2), 2, false},
+		{O(4, 1, 10), O(4, 2, 1), 1, false},
+
 		{O(), O(1, 1), 1, false},
 		// Some missing / invalid ones
-		{O(4, 1), nil, -1, true},
+		{O(5, 1), nil, -1, true},
 	}
 
 	for _, test := range branchTests {
@@ -123,7 +137,7 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 
 		// First, check that the OIDs match
 		if !oid.Equals(test.expectedOID) && !test.expectNil {
-			t.Errorf("Did not get %s - got %s", test.expectedOID, oid)
+			t.Errorf("Did not get %s from a GETNEXT with %s - got %s", test.expectedOID, test.target, oid)
 			t.Fail()
 		}
 
@@ -133,5 +147,9 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 		}
 
 		// Now check that the retrieved value matches
+		if !test.expectNil && test.expectedVal != node.Value().value.(int) {
+			t.Errorf("Wrong value when looking up %s; got %v, wanted %d", test.expectedOID, node.Value().value, test.expectedVal)
+			t.Fail()
+		}
 	}
 }

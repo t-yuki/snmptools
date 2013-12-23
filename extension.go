@@ -142,7 +142,11 @@ func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 				newOID[len(newOID)-1] += 1
 
 				if n := GetLeaf(node, newOID.Add(NewOID(1))); n != nil {
-					return newOID.Add(NewOID(1)), n
+					if n.Value() != nil {
+						return newOID.Add(NewOID(1)), n
+					} else if o, _ := GetNextLeaf(node, newOID.Add(NewOID(1))); n != nil {
+						return o, GetLeaf(node, o)
+					}
 				}
 
 			}
@@ -430,7 +434,7 @@ func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, erro
 		if leaf == nil || oid == nil {
 			fmt.Fprintf(ppe.output, "None\n")
 		} else {
-			logger.Debug(fmt.Sprintf("Responding with OID %s, val %s", oid, leaf.Value()))
+			logger.Debug(fmt.Sprintf("Responding to %v request for %s with OID %s, val %s", ppe.currentState, ppe.root.Add(partial), oid, leaf.Value()))
 			fmt.Fprintf(ppe.output, "%s\n%s\n%s\n", oid, leaf.Value().asnType.PrettyString(), leaf.Value().value)
 		}
 
