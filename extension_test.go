@@ -18,12 +18,7 @@ func TestGetOIDFromMIBTree(t *testing.T) {
 	// Create a list of 10 leaves
 	// Add each of them to the branch
 	for i := 1; i < cnt; i += 1 {
-		if leaf, err := NewSMILeaf(AsnInteger, i); err != nil {
-			t.Error(err)
-			t.FailNow()
-		} else {
-			branch.AddChild(NewLeafNode(leaf))
-		}
+		branch.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
 	}
 
 	// Create a higher level branch
@@ -85,14 +80,9 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 	// Create a list of 10 leaves
 	// Add each of them to the branch
 	for i := 1; i < cnt; i += 1 {
-		if leaf, err := NewSMILeaf(AsnInteger, i); err != nil {
-			t.Error(err)
-			t.FailNow()
-		} else {
-			branchOne.AddChild(NewLeafNode(leaf))
-			branchTwo.AddChild(NewLeafNode(leaf))
-			branchThree.AddChild(NewLeafNode(leaf))
-		}
+		branchOne.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
+		branchTwo.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
+		branchThree.AddChild(NewLeafNode(NewSMILeaf(AsnInteger, i)))
 	}
 
 	// Create a higher level branch

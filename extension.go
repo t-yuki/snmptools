@@ -165,16 +165,15 @@ type SMILeaf struct {
 
 // NewSMILeaf() creates a new SMILeaf. Returns BadValType as the error if the
 // type is not vaild.
-func NewSMILeaf(asnType AsnType, value interface{}) (leaf *SMILeaf, err error) {
-	leaf = new(SMILeaf)
+
+// NewSMILeaf() creates a new SMILeaf.
+//
+// Logs a warning if the AsnType type is not valid.
+func NewSMILeaf(asnType AsnType, value interface{}) *SMILeaf {
 	if _, ok := PassPersistTypes[asnType]; !ok {
-		return leaf, BadValType
+		logger.Warning(fmt.Sprintf("AsnType not valid for pass_persist extensions: %v", asnType.PrettyString()))
 	}
-
-	leaf.asnType = asnType
-	leaf.value = value
-
-	return
+	return &SMILeaf{asnType, value}
 }
 
 func (l *SMILeaf) String() string {
