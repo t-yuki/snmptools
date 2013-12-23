@@ -1,14 +1,16 @@
 package snmptools
 
-// #include "sitemon_agent.h"
-import "C"
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"strconv"
 	"strings"
-	"unsafe"
+)
+
+var (
+	// Type errors
+	BadValType  = fmt.Errorf("Incorrect type for OID value")
+	BadOID      = fmt.Errorf("Could not convert OID from C value")
+	OIDNotMatch = fmt.Errorf("OIDS did not match")
 )
 
 // An snmp OID is just an array of uint32 values
@@ -109,34 +111,6 @@ func NewOIDFromString(s string) (OID, error) {
 
 }
 
-// Create an OID from the C representation
-func NewOIDFromCArray(coid *C.oid, oid_length C.int) (OID, error) {
-	// See http://stackoverflow.com/questions/14826319/go-cgo-how-do-you-use-a-c-array-passed-as-a-pointer
-	var (
-		o      OID
-		err    error
-		buf    *bytes.Reader
-		result = make([]uint32, int(oid_length))
-		size   = C.int(unsafe.Sizeof(*coid))
-		b      = C.GoBytes(unsafe.Pointer(coid), size*oid_length)
-	)
-
-	// Read a single uint32 from the buffer
-	// Each OID is 4 little-endian, with 4 bytes of padding between them
-	for i := 0; i < int(size*oid_length); i += 8 {
-		var out uint32
-		buf = bytes.NewReader(b[i : i+8])
-		if err = binary.Read(buf, binary.LittleEndian, &out); err != nil {
-			return o, BadOID
-		}
-
-		// Append the number to the result
-		result[i/8] = out
-	}
-
-	return NewOID(result...), nil
-}
-
 // Pretty-print the OID with standard notation (each number dot-prefixed)
 //
 // e.g.:
@@ -154,11 +128,49 @@ func (oid OID) String() string {
 	return string(b)
 }
 
-// Convert the OID to a C representation
-func (oid OID) C_ulong() []C.ulong {
-	coid := make([]C.ulong, len(oid))
-	for i, num := range oid {
-		coid[i] = C.ulong(num)
+type AsnType byte
+
+func (t AsnType) PrettyString() string {
+	s, ok := asnStrings[t]
+	if ok {
+		return s
+	} else {
+		return string(t)
 	}
-	return coid
+}
+
+// SNMP data types
+const (
+	AsnInteger          AsnType = 0x02
+	AsnBitString        AsnType = 0x03
+	AsnOctetString      AsnType = 0x04
+	AsnNull             AsnType = 0x05
+	AsnObjectIdentifier AsnType = 0x06
+	AsnSequence         AsnType = 0x30
+	AsnIpAddress        AsnType = 0x40
+	AsnCounter32        AsnType = 0x41
+	AsnGauge32          AsnType = 0x42
+	AsnTimeTicks        AsnType = 0x43
+	AsnOpaque           AsnType = 0x44
+	AsnNsapAddress      AsnType = 0x45
+	AsnCounter64        AsnType = 0x46
+	AsnUinteger32       AsnType = 0x47
+	AsnNoSuchObject     AsnType = 0x80
+	AsnNoSuchInstance   AsnType = 0x81
+	AsnGetRequest       AsnType = 0xa0
+	AsnGetNextRequest   AsnType = 0xa1
+	AsnGetResponse      AsnType = 0xa2
+	AsnSetRequest       AsnType = 0xa3
+	AsnTrap             AsnType = 0xa4
+	AsnGetBulkRequest   AsnType = 0xa5
+)
+
+var asnStrings = map[AsnType]string{
+	AsnInteger:          "integer",
+	AsnGauge32:          "gauge",
+	AsnCounter32:        "counter",
+	AsnTimeTicks:        "timeticks",
+	AsnIpAddress:        "ipaddress",
+	AsnObjectIdentifier: "objectid",
+	AsnOctetString:      "string",
 }
