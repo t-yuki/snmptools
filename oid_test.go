@@ -68,7 +68,7 @@ func TestOIDAdd(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if !test.root.Add(test.partial).Equals(test.expected) {
+		if !test.root.Add(test.partial...).Equals(test.expected) {
 			t.Errorf("%s with %s added did not amount to %s", test.root, test.partial, test.expected)
 			t.Fail()
 		}

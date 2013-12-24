@@ -64,7 +64,7 @@ func (oid OID) GetRemainder(root OID) (OID, error) {
 }
 
 // Add a partial OID to this root OID, returning a new OID
-func (oid OID) Add(partial OID) OID {
+func (oid OID) Add(partial ...uint32) OID {
 	var (
 		length = len(oid) + len(partial)
 		newOID = make(OID, length)

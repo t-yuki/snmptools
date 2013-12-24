@@ -58,6 +58,7 @@ func GetLeaf(node SMINode, oid OID) SMINode {
 // the current subtree is exhausted.
 //
 // For example , if called with .1.3.6.1.9, GetNextLeaf() it will never return .1.3.6.2.0
+
 func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 	// Get whatever is at this OID
 	logger.Debug(fmt.Sprintf("GetNextLeaf was called with %s", oid))
@@ -70,7 +71,7 @@ func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 
 	if len(oid) == 0 {
 		// An OID can't be empty - add a .1
-		oid = oid.Copy().Add(NewOID(1))
+		oid = oid.Copy().Add(1)
 	}
 
 	if oid[len(oid)-1] == 0 {
@@ -89,7 +90,7 @@ func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 
 	} else if leaves != nil && leaves[0].Value() != nil {
 		// We have a true leaf - return it
-		newOID = oid.Add(NewOID(1))
+		newOID = oid.Add(1)
 		//return newOID, NewLeafNode(leaves[0].Value())
 		return newOID, GetLeaf(thisBranch, newOID)
 
@@ -122,10 +123,10 @@ func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
 				newOID = newOID[:len(newOID)-1]
 				newOID[len(newOID)-1] += 1
 
-				if n := GetLeaf(node, newOID.Add(NewOID(1))); n != nil {
+				if n := GetLeaf(node, newOID.Add(1)); n != nil {
 					if n.Value() != nil {
-						return newOID.Add(NewOID(1)), n
-					} else if o, _ := GetNextLeaf(node, newOID.Add(NewOID(1))); n != nil {
+						return newOID.Add(1), n
+					} else if o, _ := GetNextLeaf(node, newOID.Add(1)); n != nil {
 						return o, GetLeaf(node, o)
 					}
 				}

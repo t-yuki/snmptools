@@ -179,13 +179,13 @@ func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, erro
 
 			// Combine the root OID with the OID we gave to the subtree to get
 			// what we'll use for the response
-			oid = ppe.root.Add(oid)
+			oid = ppe.root.Add(oid...)
 		}
 
 		if leaf == nil || oid == nil {
 			fmt.Fprintf(ppe.output, "None\n")
 		} else {
-			logger.Debug(fmt.Sprintf("Responding to %v request for %s with OID %s, val %s", ppe.currentState, ppe.root.Add(partial), oid, leaf.Value()))
+			logger.Debug(fmt.Sprintf("Responding to %v request for %s with OID %s, val %s", ppe.currentState, ppe.root.Add(partial...), oid, leaf.Value()))
 			fmt.Fprintf(ppe.output, "%s\n%s\n%v\n", oid, leaf.Value().asnType.PrettyString(), leaf.Value().value)
 		}
 
