@@ -6,14 +6,24 @@ import "fmt"
 //
 // Each node is either a subtree or a leaf.
 //
-// If the node is a subtree, Children() returns the child nodes and Value() will be nil.
+//
+
+// SMINode is a node in the SMI tree.
+//
+// SNMP MIBs use SMI - the Structure of Management Information - to define the hierarchy of managed objects.
+//
+// Each node is either a subtree or a leaf.  A leaf is a node embedding a real
+// value: an SMILeaf. A subtree is a node with 0 or more children; these
+// children may be leaves or further subtrees.
+//
+// Thus, if the node is a subtree, Children() returns the child nodes and Value() will be nil.
 // Conversely, if the node is a leaf, Children() will be nil and Value() returns an SMILeaf.
 //
 // For subtrees, the order of the children is significant: the indices of the array correspond to the sequential child OIDs.
 // For example, if the SMINode is a subtree located at .1.3.6.1.4.1.89999, its first child corresponds to 1.3.6.1.4.1.89999.1
 type SMINode interface {
-	Children() []SMINode
 	Value() *SMILeaf
+	Children() []SMINode
 }
 
 // GetLeaf gets a leaf from an SMINode by OID.
@@ -22,7 +32,7 @@ type SMINode interface {
 //
 // If the target OID does not match the structure of the node, the return value will be nil.
 func GetLeaf(node SMINode, oid OID) SMINode {
-	logger.Debug(fmt.Sprintf("GetLeaf was called with %s", oid))
+	//logger.Debug(fmt.Sprintf("GetLeaf was called with %s", oid))
 	var leaves []SMINode
 
 	if len(oid) == 0 {
@@ -51,94 +61,86 @@ func GetLeaf(node SMINode, oid OID) SMINode {
 	}
 }
 
-// GetNextLeaf gets the next leaf AFTER the targeted OID from this subtree.
-// For example, if called with .1.3.6.1, the node at .1.3.6.2 may be returned.
+// NextLeaf takes a node in an SMI tree and an OID relative to that node, and
+// returns the OID of the _next_ leaf.
 //
-// The search first tries to move horizontally, but it will move upward when
-// the current subtree is exhausted.
+// For example, if called with .1.3.6, where that OID points at a subtreee, it may return .1.3.6.1, a leaf.
+// If called with .1.3.6.1, .1.3.6.2 may be returned.
 //
-// For example , if called with .1.3.6.1.9, GetNextLeaf() it will never return .1.3.6.2.0
-
-func GetNextLeaf(node SMINode, oid OID) (OID, SMINode) {
-	// Get whatever is at this OID
-	logger.Debug(fmt.Sprintf("GetNextLeaf was called with %s", oid))
-	var (
-		leaves     []SMINode
-		val        *SMILeaf
-		newOID     OID
-		thisBranch SMINode
-	)
+// This is useful for implementing GETNEXT with snmp.
+func NextLeaf(node SMINode, oid OID) OID {
+	//logger.Debug(fmt.Sprintf("Looking for next leaf from %s", oid))
 
 	if len(oid) == 0 {
-		// An OID can't be empty - add a .1
-		oid = oid.Copy().Add(1)
+		// Empty OID - start with .1
+		oid = NewOID(1)
 	}
 
 	if oid[len(oid)-1] == 0 {
-		// An OID can't be at .0 for its last value; we return the .1
+		// This OID ends in a zero, which is really the address of the subtree;
+		// replace the last number with a 1
 		oid = oid.Copy()
 		oid[len(oid)-1] = 1
 	}
 
-	if thisBranch = GetLeaf(node, oid); thisBranch == nil {
-		return nil, nil
+	// Now try the various ways getting at the OID
+	if thisBranch := GetLeaf(node, oid); thisBranch == nil {
+		// There's nothing at this OID - return nil
+		return nil
 
-	} else if leaves = thisBranch.Children(); leaves != nil && len(leaves) == 0 {
-		// TODO - this shouldn't happen: leaves is non-nil but zero in length?
-		// Why would someone add a branch without adding any leaves to it?
-		return nil, nil
+	} else if children := thisBranch.Children(); children != nil && len(children) == 0 {
+		// This is a subtree, but it doesn't have any children - return nil
+		return nil
 
-	} else if leaves != nil && leaves[0].Value() != nil {
-		// We have a true leaf - return it
-		newOID = oid.Add(1)
-		//return newOID, NewLeafNode(leaves[0].Value())
-		return newOID, GetLeaf(thisBranch, newOID)
+	} else if children != nil && children[0].Value() != nil {
+		// This is a subtree where the first child is a leaf - that'll do
+		return oid.Add(1)
 
-	} else if leaves != nil {
-		// We need to recurse down to a true leaf
-		return GetNextLeaf(leaves[0], NewOID(1))
+	} else if children != nil {
+		// Ths first child of this subtree is itself a subtree - make a recursive call
+		return oid.Add(NextLeaf(thisBranch, NewOID(1))...)
 
-	} else if val = thisBranch.Value(); val == nil {
-		// This shouldn't happen; how can there be a MibNode where the
-		// value and leaves are both nil?
+	} else if val := thisBranch.Value(); val == nil {
+		// Bad situation - this is somehow a node that has no children but also no leaf
+		// TODO - log this?
 		panic(fmt.Errorf("MibNode is nil for both Children() and Value(): %#v", thisBranch))
 
 	} else {
-		// This OID points DIRECTLY at a value - we need to find the next one
-		// by moving horizontally. This is most easily done by incrementing the
-		// final number.
-		newOID = oid.Copy()
+		// This OID actually points directly at a leaf - this means we need to
+		// shift horizontally or even vertically to find the next OID in the
+		// tree
+
+		// First, copy the OID and iterate the final number, then test
+		// whether an object exists there.
+		newOID := oid.Copy()
 		newOID[len(newOID)-1] += 1
 
-		// We call GetLeaf with the node that the function was given, not with
-		// the branch we've been looking at.
 		if newNode := GetLeaf(node, newOID); newNode != nil {
-			return newOID, newNode
-
-		} else {
-
-			for len(newOID) > 0 {
-
-				// Copy off the last value and increment the second-last value
-				newOID = newOID[:len(newOID)-1]
-				newOID[len(newOID)-1] += 1
-
-				if n := GetLeaf(node, newOID.Add(1)); n != nil {
-					if n.Value() != nil {
-						return newOID.Add(1), n
-					} else if o, _ := GetNextLeaf(node, newOID.Add(1)); n != nil {
-						return o, GetLeaf(node, o)
-					}
-				}
-
-			}
-			return nil, nil
+			// Found a horizontally adjacent leaf - return its OID
+			return newOID
 		}
+
+		// There's nothing horizontally adjacent - we must move horizontally
+		// until a leaf is found or the OID is exhausted
+		for len(newOID) > 0 {
+
+			// Remove the final number and increment the end
+			newOID = newOID[:len(newOID)-1]
+			newOID[len(newOID)-1] += 1
+
+			if n := GetLeaf(node, newOID.Add(1)); n != nil {
+				// There's something here
+				if n.Value() != nil {
+					return newOID.Add(1)
+				} else if o := NextLeaf(node, newOID.Add(1)); n != nil {
+					return o
+				}
+			}
+		}
+
+		// Nothing was found and the OID was exhausted - return nil
+		return nil
 	}
-
-	// TODO - ??
-	return nil, nil
-
 }
 
 // SMILeaf is a leaf in the mib tree. It has an ASN.1 type and a value.

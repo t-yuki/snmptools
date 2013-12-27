@@ -131,15 +131,26 @@ func TestGetNextOIDFromMIBTree(t *testing.T) {
 	}
 
 	for _, test := range branchTests {
+		var oid OID
+		var node SMINode
+
 		// Try to get the leaf
-		//node, oid := GetNextLeaf(outerBranch, test.target)
-		oid, node := GetNextLeaf(outerBranch, test.target)
+		oid = NextLeaf(outerBranch, test.target)
+		if oid == nil && test.expectNil {
+			continue
+		} else if oid == nil {
+			t.Errorf("Got nil oid - expected %s", test.expectedOID)
+			t.Fail()
+			continue
+		}
 
 		// First, check that the OIDs match
-		if !oid.Equals(test.expectedOID) && !test.expectNil {
+		if !oid.Equals(test.expectedOID) {
 			t.Errorf("Did not get %s from a GETNEXT with %s - got %s", test.expectedOID, test.target, oid)
 			t.Fail()
 		}
+
+		node = GetLeaf(outerBranch, oid)
 
 		if test.expectNil && node != nil {
 			t.Errorf("Expected nil when querying for %s; got oid %s and val %s", test.target, oid, node)

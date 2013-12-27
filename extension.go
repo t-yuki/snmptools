@@ -175,11 +175,14 @@ func (ppe *PassPersistExtension) handleLine(line string) (passPersistState, erro
 			leaf = GetLeaf(ppe.mibTree, partial)
 
 		} else if ppe.currentState == getNextState {
-			oid, leaf = GetNextLeaf(ppe.mibTree, partial)
-
-			// Combine the root OID with the OID we gave to the subtree to get
-			// what we'll use for the response
-			oid = ppe.root.Add(oid...)
+			if oid = NextLeaf(ppe.mibTree, partial); oid == nil {
+				break
+			} else {
+				leaf = GetLeaf(ppe.mibTree, oid)
+				// Combine the root OID with the OID we gave to the subtree to get
+				// what we'll use for the response
+				oid = ppe.root.Add(oid...)
+			}
 		}
 
 		if leaf == nil || oid == nil {
